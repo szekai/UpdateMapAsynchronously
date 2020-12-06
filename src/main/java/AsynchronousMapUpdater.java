@@ -1,39 +1,59 @@
 import java.util.Map;
 import java.util.concurrent.*;
+import java.util.function.Function;
 import java.util.stream.Stream;
 
 public class AsynchronousMapUpdater {
     private final Executor backgroundJobExecutor;
     final ConcurrentMap<String, Integer> result = new ConcurrentHashMap<>();
+
+    public Map<String, Integer> getResult() {
+        return result;
+    }
+
     public AsynchronousMapUpdater(final Executor backgroundJobExecutor) {
         this.backgroundJobExecutor = backgroundJobExecutor;
     }
 
-    public Future<Map<String, Integer>> apply(final Map<String, Integer> input) {
+    public Future<Map<String, Integer>> apply(final String input) {
+        final Stream.Builder<CompletableFuture<Void>> mapReduces = Stream.builder();
+        final CompletableFuture<Void> mapReduce = getMapReduceFuture(input);
+        mapReduces.add(mapReduce);
+        return getMapFuture(mapReduces);
+    }
 
-        final Stream.Builder<CompletableFuture<Void>> incrementingJobs = Stream.builder();
-        for (final Map.Entry<String, Integer> entry : input.entrySet()) {
-            final String className = entry.getKey();
-            final Integer oldValue = entry.getValue();
-            final CompletableFuture<Void> incrementingJob = CompletableFuture.runAsync(() -> {
-                result.put(className, oldValue + 1);
-            }, backgroundJobExecutor);
-            incrementingJobs.add(incrementingJob);
-        }
-        // using thenApply instead of join here:
+    //able accept different function
+    public Future<Map<String, Integer>> apply(final String input, final Function<String, CompletableFuture<Void>> compute) {
+        final Stream.Builder<CompletableFuture<Void>> mapReduces = Stream.builder();
+        final CompletableFuture<Void> mapReduce = compute.apply(input);
+        mapReduces.add(mapReduce);
+        return getMapFuture(mapReduces);
+    }
+
+    private Future<Map<String, Integer>> getMapFuture(Stream.Builder<CompletableFuture<Void>> mapReduces) {
         return CompletableFuture.allOf(
-                incrementingJobs.build().toArray(
+                mapReduces.build().toArray(
                         CompletableFuture[]::new
                 )
         ).thenApply(x -> result);
     }
 
-    public static void main (String agrs[]) throws ExecutionException, InterruptedException {
-        Executor someExecutor = ForkJoinPool.commonPool();
-        Map<String,Integer> wordClassObservations = Map.of("A", 1,"B", 2);
-        Future<Map<String,Integer>> futureClassModels = new AsynchronousMapUpdater(someExecutor).apply(wordClassObservations);
-// Do lots of other stuff
-        Map<String,Integer> completedModels = futureClassModels.get();
-        System.out.println(completedModels);
+    public CompletableFuture<Void> getMapReduceFuture(final String input) {
+        return CompletableFuture.runAsync(() -> result.compute(input, (k, v) -> (v == null) ? 1 : v + 1), backgroundJobExecutor);
     }
+
+// Original code before refactoring
+//    public Future<Map<String, Integer>> apply(final String input) {
+//        final Stream.Builder<CompletableFuture<Void>> mapReduces = Stream.builder();
+//        final CompletableFuture<Void> mapReduce = CompletableFuture.runAsync(() ->
+//                result.compute(input, (k, v) -> (v == null) ? 1 : v + 1), backgroundJobExecutor);
+//        mapReduces.add(mapReduce);
+//
+//        return CompletableFuture.allOf(
+//                mapReduces.build().toArray(
+//                        CompletableFuture[]::new
+//                )
+//        ).thenApply(x -> result);
+//
+//    }
 }

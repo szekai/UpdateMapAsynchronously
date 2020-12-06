@@ -13,10 +13,10 @@ public class AsynchronousMapPopulator {
         final ConcurrentMap<String, Integer> result = new ConcurrentHashMap<>(input.size());
         final Stream.Builder<CompletableFuture<Void>> incrementingJobs = Stream.builder();
         for (final Map.Entry<String, Integer> entry : input.entrySet()) {
-            final String className = entry.getKey();
-            final Integer oldValue = entry.getValue();
+            final String key = entry.getKey();
+            final Integer value = entry.getValue();
             final CompletableFuture<Void> incrementingJob = CompletableFuture.runAsync(() -> {
-                result.put(className, oldValue + 1);
+                result.put(key, value + 1);
             }, backgroundJobExecutor);
             incrementingJobs.add(incrementingJob);
         }
@@ -26,14 +26,5 @@ public class AsynchronousMapPopulator {
                         CompletableFuture[]::new
                 )
         ).thenApply(x -> result);
-    }
-
-    public static void main (String agrs[]) throws ExecutionException, InterruptedException {
-        Executor someExecutor = ForkJoinPool.commonPool();
-        Map<String,Integer> wordClassObservations = Map.of("A", 1,"B", 2);
-        Future<Map<String,Integer>> futureClassModels = new AsynchronousMapPopulator(someExecutor).apply(wordClassObservations);
-// Do lots of other stuff
-        Map<String,Integer> completedModels = futureClassModels.get();
-        System.out.println(completedModels);
     }
 }
