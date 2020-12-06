@@ -2,6 +2,10 @@ import java.util.Map;
 import java.util.concurrent.*;
 import java.util.stream.Stream;
 
+/**
+ * Modified example copied from stackoverflow
+ * https://stackoverflow.com/questions/47156778/asynchronously-populating-a-java-map-and-returning-it-as-a-future
+ */
 public class AsynchronousMapPopulator {
     private final Executor backgroundJobExecutor;
 
